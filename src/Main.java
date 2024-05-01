@@ -1,4 +1,6 @@
+import javax.swing.*;
 import java.util.*;
+import java.util.List;
 
 public class Main {
 
@@ -50,9 +52,11 @@ public class Main {
 
         public List<ServerLog> ServerLogs;
 
-        public Map<Long, Integer> QueueWaitTime;
+        public Map<Integer, Integer> QueueWaitTime;
 
-        public Map<Long, Integer> busyServer;
+        public Map<Integer, Integer> busyServer;
+
+        public final long startServerTime = System.currentTimeMillis();
 
         public Server(double ro, double expectation, double tsmax) {
             random = new Random();
@@ -77,8 +81,8 @@ public class Main {
             PrevT2 = 0.0;
             i = -1;
             ServerLogs = new ArrayList<>();
-            QueueWaitTime = new HashMap<>();
-            busyServer = new HashMap<>();
+            QueueWaitTime = new TreeMap<>();
+            busyServer = new TreeMap<>();
         }
 
         public void runServer() {
@@ -94,9 +98,27 @@ public class Main {
             ServerLog serverLog = new ServerLog((type ? "2" : "1"), t1, initSigma, t1, t2, (k ? "1" : "0"), l, ts, "Инициализация");
             ServerLogs.add(serverLog);
             long startTime = System.currentTimeMillis();
-            while (System.currentTimeMillis()   < startTime + tsmax) {
+            while (System.currentTimeMillis() < startTime + tsmax) {
                 ProcessTimeStep();
             }
+
+            WaitTimeGraph waitTimeGraph = new WaitTimeGraph(QueueWaitTime);
+            JFrame frame = new JFrame();
+            frame.setSize(800, 600);
+            frame.setTitle("Wait time graph");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setLocationRelativeTo(null);
+            frame.add(waitTimeGraph);
+            frame.setVisible(true);
+
+            BusyTimeGraph busyTimeGraph = new BusyTimeGraph(busyServer);
+            JFrame frame1 = new JFrame();
+            frame1.setSize(800, 600);
+            frame1.setTitle("Busy time graph");
+            frame1.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame1.setLocationRelativeTo(null);
+            frame1.add(busyTimeGraph);
+            frame1.setVisible(true);
         }
 
         public void ProcessTimeStep() {
@@ -129,6 +151,7 @@ public class Main {
                             if (l <= qMAX) {
                                 q.add(newTask);
                                 l += 1;
+                                busyServer.put((int) (System.currentTimeMillis() - startServerTime), 100);
                             }
                     } else {
                         core1.Task = newTask;
@@ -190,9 +213,17 @@ public class Main {
                 core.Task = q.get(indexOfHighPriorityTask);
                 q.remove(indexOfHighPriorityTask);
                 l -= 1;
-                long waitTime = System.currentTimeMillis() - core.Task.createTime;
-                QueueWaitTime.put(waitTime, QueueWaitTime.getOrDefault(waitTime, 0) + 1);
+                if (l == 0) {
+                    busyServer.put((int) (System.currentTimeMillis() - startServerTime), 0);
+                }
+                int waitTime = (int) (System.currentTimeMillis() - core.Task.createTime);
+                QueueWaitTime.put((int) (System.currentTimeMillis() - startServerTime) / 10, waitTime);
                 t2 += sigma;
+                try {
+                    Thread.sleep((Math.round(t2)));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
 
@@ -215,7 +246,7 @@ public class Main {
         }
 
         private double randomGaussMaxSigma() {
-            return Math.max(0, Math.random() / -expectation);
+            return Math.abs(Math.random() / -expectation);
         }
     }
 
@@ -231,8 +262,7 @@ public class Main {
         public Double Delta;
         public long createTime;
 
-        public Task()
-        {
+        public Task() {
             I = 0;
             T = 0.0;
             Tau = 0.0;
