@@ -5,16 +5,14 @@ import java.util.List;
 public class Main {
 
     public static void main(String[] args) {
-        new Server(0.5, 0.5, 10000).runServer();
+        new Server(0.1, 0.5, 10000).runServer();
     }
 
     static class Server {
         public static Random random;
-        public int qMAX = 1;
+        public int qMAX;
 
-        public double a;
-
-        public double b;
+        public double ro;
 
         public double expectation;
 
@@ -63,6 +61,7 @@ public class Main {
 
             qMAX = (int) Math.round(1 / (1 - ro));
             this.expectation = expectation;
+            this.ro = ro;
 
             ts = 0.0;
             this.tsmax = tsmax;
@@ -100,6 +99,10 @@ public class Main {
             long startTime = System.currentTimeMillis();
             while (System.currentTimeMillis() < startTime + tsmax) {
                 ProcessTimeStep();
+            }
+
+            for (ServerLog sl : ServerLogs) {
+                System.out.println(sl);
             }
 
             WaitTimeGraph waitTimeGraph = new WaitTimeGraph(QueueWaitTime);
@@ -314,6 +317,7 @@ public class Main {
         public String TS = "";
 
         public String Description = "";
+        private final long time = System.currentTimeMillis();
 
         public ServerLog() {
         }
@@ -328,6 +332,22 @@ public class Main {
             this.L = String.valueOf(L);
             this.TS = String.valueOf(TS);
             this.Description = Description;
+        }
+
+        @Override
+        public String toString() {
+            return "ServerLog{" +
+                    "Type='" + Type + '\'' +
+                    ", Tau='" + Tau + '\'' +
+                    ", Sigma='" + Sigma + '\'' +
+                    ", T1='" + T1 + '\'' +
+                    ", T2='" + T2 + '\'' +
+                    ", K='" + K + '\'' +
+                    ", L='" + L + '\'' +
+                    ", TS='" + TS + '\'' +
+                    ", Description='" + Description + '\'' +
+                    ", time=" + time +
+                    '}';
         }
     }
 
