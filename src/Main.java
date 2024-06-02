@@ -5,7 +5,7 @@ import java.util.List;
 public class Main {
 
     public static void main(String[] args) {
-        new Server(0.5, 0.5, 10000).runServer();
+        new Server(0.5, 0.5, 10000, 5, 10).runServer();
     }
 
     static class Server {
@@ -38,7 +38,7 @@ public class Main {
 
         public boolean type;
 
-        public boolean k;
+        public boolean kk;
 
         public int l;
 
@@ -55,10 +55,13 @@ public class Main {
         public Map<Integer, Integer> QueueWaitTime;
 
         public Map<Integer, Integer> busyServer;
+        public int n, k;
+        private LinkedList<LinkedList<Integer>> adj = new LinkedList<>();
+        private Map<Integer, Integer> paths;
 
         public final long startServerTime = System.currentTimeMillis();
 
-        public Server(double ro, double expectation, double tsmax) {
+        public Server(double ro, double expectation, double tsmax, int n, int k) {
             random = new Random();
 
             qMAX = (int) Math.round(1 / (1 - ro));
@@ -73,7 +76,7 @@ public class Main {
             outStream = new ArrayList<>();
             core1 = new ServerCore();
             core2 = new ServerCore();
-            k = false;
+            kk = false;
             l = 0;
             type = false;
             nextTau = 0.0;
@@ -83,6 +86,12 @@ public class Main {
             ServerLogs = new ArrayList<>();
             QueueWaitTime = new TreeMap<>();
             busyServer = new TreeMap<>();
+            this.n = n;
+            this.k = k;
+            for (int i = 0; i < getN(); ++i) {
+                adj.add(new LinkedList<>());
+            }
+
         }
 
         public void runServer() {
@@ -95,7 +104,7 @@ public class Main {
             core1.IsBusy = true;
             inStream.add(core1.Task);
 
-            ServerLog serverLog = new ServerLog((type ? "2" : "1"), t1, initSigma, t1, t2, (k ? "1" : "0"), l, ts, "Инициализация");
+            ServerLog serverLog = new ServerLog((type ? "2" : "1"), t1, initSigma, t1, t2, (kk ? "1" : "0"), l, ts, "Инициализация");
             ServerLogs.add(serverLog);
             long startTime = System.currentTimeMillis();
             while (System.currentTimeMillis() < startTime + tsmax) {
@@ -128,7 +137,7 @@ public class Main {
             if (type) // Окончание обслуживания
             {
                 double sigma = randomGaussMaxSigma();
-                k = core1.IsBusy || core2.IsBusy;
+                kk = core1.IsBusy || core2.IsBusy;
                 HandleTask(sigma);
 
                 serverLog.Sigma = String.valueOf(sigma);
@@ -141,12 +150,12 @@ public class Main {
                 i++;
 
                 if (i == 0) {
-                    k = true;
+                    kk = true;
                 } else {
                     Task newTask = new Task(i, t1, nextTau, null, null, System.currentTimeMillis());
                     inStream.add(newTask);
 
-                    if (k) {
+                    if (kk) {
                         if (!DelegateTaskToCore(newTask))
                             if (l <= qMAX) {
                                 q.add(newTask);
@@ -156,7 +165,7 @@ public class Main {
                     } else {
                         core1.Task = newTask;
                         core1.IsBusy = true;
-                        k = true;
+                        kk = true;
                     }
                 }
 
@@ -170,7 +179,7 @@ public class Main {
             type = t1 > t2;
             ts = Math.min(t1, t2);
 
-            serverLog.K = (k ? "1" : "0");
+            serverLog.K = (kk ? "1" : "0");
             serverLog.L = String.valueOf(l);
             serverLog.TS = String.valueOf(ts);
 
@@ -248,6 +257,99 @@ public class Main {
         private double randomGaussMaxSigma() {
             return Math.abs(Math.random() / -expectation);
         }
+
+        public int getDiameter() {
+            int maxDiameter = 0;
+            for (int i = 0; i < getN(); i++) {
+                int[] dist = new int[getN()];
+                Arrays.fill(dist, -1);
+                Queue<Integer> q = new LinkedList<>();
+                q.add(i);
+                dist[i] = 0;
+
+                while (!q.isEmpty()) {
+                    int u = q.poll();
+
+                    for (int v : adj[u]) {
+                        if (dist[v] == -1) {
+                            dist[v] = dist[u] + 1;
+                            q.add(v);
+                        }
+                    }
+                }
+
+                for (int j = 0; j < getN(); j++) {
+                    if (dist[j] > maxDiameter) {
+                        maxDiameter = dist[j];
+                    }
+                }
+            }
+            return maxDiameter;
+        }
+
+        public void calculatePathsCount() {
+            paths.clear();
+
+            for (int i = 0; i < getN(); i++) {
+                int[] dists = Dijkstra(i);
+
+                for (int j = 0; j < dists.length; j++) {
+                    if (i == j)
+                        continue;
+
+                    if (paths.containsKey(dists[j]))
+                        paths.put(dists[j], dists[j]++);
+                    else
+                        paths.put(dists[j], 1);
+                }
+            }
+        }
+
+        public double getAveragePathLength() {
+            if (!paths.isEmpty()) {
+                double expect = 0.0, sum = paths.values().stream().mapToInt(i -> i).sum();
+                for (Map.Entry<Integer, Integer> integerIntegerEntry : paths.entrySet()) {
+                    expect += (double) integerIntegerEntry.getKey() * (double) integerIntegerEntry.getValue() / sum;
+                }
+                return expect;
+            } else {
+                return -1.0;
+            }
+        }
+
+        public int getN() {
+            return n + k;
+        }
+
+        public int[] Dijkstra(int src) {
+            int[] dist = new int[getN()];
+
+            for (int i = 0; i < getN(); ++i)
+                dist[i] = Integer.MAX_VALUE;
+
+            dist[src] = 0;
+
+            var pq = new TreeMap<Integer, Integer>();
+            pq.put(0, src);
+
+            while (!pq.isEmpty()) {
+                var min = pq.values().stream().mapToInt(i -> i).min().getAsInt();
+                pq.remove(min);
+
+                for (LinkedList<Integer> integers : adj) {
+                    int v = integers.getFirst();
+                    int w = integers.getLast();
+                    int u = integers.getLast();
+                    if (dist[v] > dist[u] + w) {
+                        pq.remove(dist[v], v);
+                        dist[v] = dist[u] + w;
+                        pq.put(dist[v], v);
+                    }
+                }
+            }
+
+            return dist;
+        }
     }
 
     static class Task {
@@ -261,14 +363,6 @@ public class Main {
 
         public Double Delta;
         public long createTime;
-
-        public Task() {
-            I = 0;
-            T = 0.0;
-            Tau = 0.0;
-            Sigma = null;
-            Delta = null;
-        }
 
         public Task(int I, Double T, Double Tau, Double Sigma, Double Delta, long createTime) {
             this.I = I;
